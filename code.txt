@@ -1,0 +1,63 @@
+function addDetail() {
+            var dlvno = $('#dataFormMasterdlvno').text('getValue'); //先抓取Master.dlvno欄位值，
+            //判斷Master.dlvno值為自動編號時，則往下走至後端取得自動編號參數的值；如果已有值，則跳過。
+            if ("自動編號" == dlvno[0].value) {
+                //STEP1 先確定選擇的客戶是否有資料
+                var validate3 = true;
+                var cusno = $('#dataFormMastercusno').refval('getValue');
+                $.ajax({
+                    type: "POST",
+                    url: '../handler/jqDataHandle.ashx?RemoteName=s_WSALP10010_RMF', //指向後端Server Package(s_WSALP10010_RMF)中
+                    data: "mode=method&method=" + "countDelivItemsData" + "&parameters=" + cusno, //使用s_WSALP10010_RMF中的countDelivItemsData方法並將參數帶往後端給SQL執行
+                    cache: false, async: false,
+                    success: function (data) {
+                        validate3 = data;
+                    }
+                });
+                //STEP2 客戶有資料時再進行取號與新增明細資料動作
+                if (validate3 > 0) {
+                    var validate2 = true;
+                    var cusno = $('#dataFormMastercusno').refval('getValue');
+                    $.ajax({
+                        type: "POST",
+                        url: '../handler/jqDataHandle.ashx?RemoteName=s_WSALP10010_RMF', //指向後端Server Package(s_WSALP10010_RMF)中
+                        data: "mode=method&method=" + "addDetailData" + "&parameters=" + cusno, //使用s_WSALP10010_RMF中的addDetailData方法並將參數帶往後端給SQL執行
+                        cache: false, async: false,
+                        success: function (data) {
+                            var rows = $.parseJSON(data);//將JSon轉會到Object類型提供給Grid顯示
+                            $('#dataGridDetail').datagrid('loadData', rows);//通過loadData方法清除掉原有Grid中的舊有資料並填補新資料
+
+                        }
+                    });
+                    
+                }
+                else {
+                    alert('該客戶無客戶交易品項資料，\n請先至日常作業→02. 客戶交易品項維護作業新增！');
+                    return false;
+                }
+            }
+        }
+
+
+
+後端serverMethod：
+
+public object addDetailData(object[] objParam)
+        {
+
+            string cusno = objParam[0].ToString();
+            string _db = this.GetClientInfo(ClientInfoType.LoginDB).ToString(); //抓取client端登入的DB
+            _Conn = doConn.GetWebConnStr(_db); //將回傳的參數(連線哪個DBString)帶入_Conn中
+
+            string _sql = "select '自動編號' as dlvno, a.item, a.prdno, a.prdpack, b.prdna1 as prdName, '0' as saleqty, '0' as rtnqty, '0' as backqty, '' as rem from delivitems a, prd b where a.prdno = b.prdno and a.cusno = '" + cusno + "'";
+            //string _sql = "select a.item, a.prdno, a.prdpack, b.prdna1 as prdName, '0' as saleqty, '0' as rtnqty, '0' as backqty, '' as rem from delivitems a, prd b where a.prdno = b.prdno and a.cusno = '" + cusno + "'";
+
+            DataTable dt = inSQL.GetData(_sql, _Conn);
+
+            string retval = JsonConvert.SerializeObject(dt, Formatting.Indented);
+
+            object ret;
+            ret = new object[] { 0, retval };
+            return ret;
+
+        }
